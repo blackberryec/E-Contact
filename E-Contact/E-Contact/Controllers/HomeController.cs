@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using E_Contact.ViewModels;
+using Microsoft.AspNetCore.Mvc;
 
 namespace E_Contact.Controllers
 {
@@ -20,7 +21,7 @@ namespace E_Contact.Controllers
         
         public IActionResult Index()
         {
-            return View();
+            return View(new HomeViewModel());
         }
 
         public IActionResult About()

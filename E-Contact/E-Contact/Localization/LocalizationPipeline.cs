@@ -1,11 +1,8 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Localization.Routing;
-using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace E_Contact
 {
@@ -20,7 +17,7 @@ namespace E_Contact
                                 {
                                     new CultureInfo("et"),
                                     new CultureInfo("en"),
-                                    new CultureInfo("ru"),
+                                    new CultureInfo("fr"),
                                 };
 
             var options = new RequestLocalizationOptions()
