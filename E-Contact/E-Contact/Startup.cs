@@ -1,11 +1,17 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Localization;
+using Microsoft.AspNetCore.Localization.Routing;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Razor;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Globalization;
+using System.Threading.Tasks;
 
 namespace E_Contact
 {
@@ -26,20 +32,47 @@ namespace E_Contact
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddLocalization();
+            services.AddLocalization(opts => { opts.ResourcesPath = "Resources"; });
             // Add framework services.
-            services.AddMvc();
-
-            services.Configure<RouteOptions>(options =>
+            services.AddMvc(opts =>
             {
-                options.ConstraintMap.Add("lang", typeof(LanguageRouteConstraint));
-            });
+                opts.Conventions.Insert(0, new LocalizationConvention());
+                opts.Filters.Add(new MiddlewareFilterAttribute(typeof(LocalizationPipeline)));
+            })
+            .AddViewLocalization(
+                LanguageViewLocationExpanderFormat.Suffix,
+                opts => { opts.ResourcesPath = "Resources"; })
+            .AddDataAnnotationsLocalization();
 
-            services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+            var supportedCultures = new[]
+            {
+                new CultureInfo("en-US"),
+                new CultureInfo("fr-FR"),
+                new CultureInfo("vn")
+            };
+
+            var options = new RequestLocalizationOptions()
+            {
+                DefaultRequestCulture = new RequestCulture(culture: "en-US", uiCulture: "en-US"),
+                SupportedCultures = supportedCultures,
+                SupportedUICultures = supportedCultures
+            };
+            options.RequestCultureProviders = new[]
+            {
+            new RouteDataRequestCultureProvider()
+                {
+                    RouteDataStringKey = "culture",
+                    Options = options
+                }
+             };
+
+            services.AddSingleton(options);
+            services.Configure<RouteOptions>(opts =>
+             opts.ConstraintMap.Add("culturecode", typeof(CultureRouteConstraint)));
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)
+        public void Configure(IApplicationBuilder app, RequestLocalizationOptions localizationOptions, IHostingEnvironment env, ILoggerFactory loggerFactory)
         {
             loggerFactory.AddConsole(Configuration.GetSection("Logging"));
             loggerFactory.AddDebug();
@@ -56,20 +89,20 @@ namespace E_Contact
 
             app.UseStaticFiles();
 
-            var options = app.ApplicationServices.GetService<IOptions<RequestLocalizationOptions>>();
-            app.UseRequestLocalization(options.Value);
-
             app.UseMvc(routes =>
             {
                 routes.MapRoute(
-                name: "LocalizedDefault",
-                template: "{lang:lang}/{controller=Home}/{action=Index}/{id?}"
-            );
-
-                routes.MapRoute(
-                name: "default",
-                template: "{*catchall}",
-                defaults: new { controller = "Home", action = "RedirectToDefaultLanguage", lang = "et" });
+                    name: "default",
+                    template: "{culture:culturecode}/{controller=Home}/{action=Index}/{id?}");
+                routes.MapGet("{culture:culturecode}/{*path}", appBuilder => { });
+                routes.MapGet("{*path}", (RequestDelegate)(ctx =>
+                {
+                    var defaultCulture = localizationOptions.DefaultRequestCulture.Culture.Name;
+                    var path = ctx.GetRouteValue("path") ?? string.Empty;
+                    var culturedPath = $"/{defaultCulture}/{path}";
+                    ctx.Response.Redirect(culturedPath);
+                    return Task.CompletedTask;
+                }));
             });
         }
     }
